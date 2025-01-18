@@ -29,10 +29,32 @@
 
 using namespace std;
 
+struct gfa_node {
+    int index;
+    bool sign; // true if negative, zero if positive
+};
+
+bool operator==(const gfa_node& first, const gfa_node& second) { // lazy
+    if (first.index != second.index) {
+        return false;
+    }
+
+    if (first.sign != second.sign) {
+        return false;
+    }
+
+    return true;
+}
+
 class gfa_graph {
     protected:
-        // from: [(to, (i_from, i_to)), ...]
-        vector<vector<pair<int, pair<bool, bool>>>> adj;
+        struct edge {
+            gfa_node dest;
+            bool source_sign; // true if negative, zero if positive
+        };
+
+        // from: [{dest: {index, sign}, source_sign}, ...]
+        vector<vector<edge>> adj;
         vector<string> label; // 2*i -> label of i+; 2*i+1 -> label of i-
         vector<bool> visited;
         vector<bool> in_stack;
@@ -55,9 +77,9 @@ class gfa_graph {
             is_source.push_back(true);
         }
 
-        void add_edge(int from, bool i_from, int to, bool i_to) {
-            adj[from].push_back({to, {i_from, i_to}});
-            is_source[2 * to + i_to] = false;
+        void add_edge(gfa_node source, gfa_node dest) {
+            adj[source.index].push_back({{dest.index, dest.sign}, source.sign});
+            is_source[2 * dest.index + dest.sign] = false; // bool treated as int!
         }
 
         gfa_graph get_acyclic() {
@@ -67,15 +89,15 @@ class gfa_graph {
             return G;
         }
 
-        string get_label(int i, bool sign = false) {
-            return label[2*i + sign];
+        string get_label(int index, bool sign = false) {
+            return label[2 * index + sign]; // bool treated as int!
         }
 
-        string get_label(pair<int, bool> node) {
-            return label[2*node.first + node.second];
+        string get_label(gfa_node node) {
+            return label[2 * node.index + node.sign]; // bool treated as int!
         }
 
-        pair<int, bool> get_source() { // (i, sign)
+        gfa_node get_source() { // (i, sign)
             for (int i = 0; i < adj.size(); i++) {
                 if (is_source[2 * i]) {
                     return {i, false};
@@ -87,32 +109,33 @@ class gfa_graph {
             return {-1, false}; // no source
         }
 
-        pair<int, bool> get_dest(pair<int, bool> source_pair) { // (i, sign)
+        gfa_node get_dest(gfa_node source) { // (i, sign)
             bool is_dest = true;
 
-            for (auto el : adj[source_pair.first]) {
-                if (el.second.first == source_pair.second) {
+            // edge -> (dest: (index, sign), source_sign)
+            for (auto edge : adj[source.index]) {
+                if (edge.source_sign == source.sign) {
                     is_dest = false;
 
-                    auto node = get_dest({el.first, el.second.second});
+                    gfa_node node = get_dest(edge.dest);
 
-                    if (node.first != -1) {
+                    if (node.index != -1) {
                         return node;
                     }
                 }
             }
 
             if (is_dest) {
-                return source_pair;
+                return source;
             } else {
                 return {-1, false}; // no destination
             }
         }
 
-        bool check_pattern(string P, pair<int, bool> source_pair, pair<int, bool> dest_pair) {
+        bool check_pattern(string pattern, gfa_node source, gfa_node dest) {
             string current = "";
 
-            return traverse_and_find_pattern_if_acyclic(P, source_pair, dest_pair, &current);
+            return traverse_and_find_pattern_if_acyclic(pattern, source, dest, &current);
         }
     private:
         bool contains_substring(string str, string substr) {
@@ -145,36 +168,36 @@ class gfa_graph {
             return false;
         }
 
-        int fast_exp_mod(int b, int i, long long int p) {
+        int fast_exp_mod(int base, int exp, long long int prime) {
             int result = 1;
             
-            while (i) {
-                if (i & 1) { // odd exponent check
-                    result = (result * b) % p;
+            while (exp) {
+                if (exp & 1) { // odd exponent check
+                    result = (result * base) % prime;
                 }
 
-                b = (b * b) % p;
-                i >>= 1; // right shift to divide by 2
+                base = (base * base) % prime;
+                exp >>= 1; // right shift to divide by 2
             }
 
             return result;
         }
 
-        bool traverse_and_find_pattern_if_acyclic(string P, pair<int, bool> source_pair, pair<int, bool> dest_pair, string* current) { // no visited vectors since we assume the graph is acyclic            
-            string current_label = get_label(source_pair);
+        bool traverse_and_find_pattern_if_acyclic(string pattern, gfa_node source, gfa_node final_dest, string* current) { // no visited vectors since we assume the graph is acyclic            
+            string current_label = get_label(source);
             *current += current_label;
 
-            if (source_pair == dest_pair) { // first then second coordinate eq check in lazy fashion
-                if (contains_substring(*current, P)) { // true if the pattern is matched
+            if (source == final_dest) { // first then second coordinate eq check in lazy fashion
+                if (contains_substring(*current, pattern)) { // true if the pattern is matched
                     return true;
                 } else {
                     (*current).erase((*current).size() - current_label.size()); // remove label
                     return false;
                 }
             } else {
-                for (auto el : adj[source_pair.first]) {
-                    if (el.second.first == source_pair.second) {
-                        if (traverse_and_find_pattern_if_acyclic(P, {el.first, el.second.second}, dest_pair, current)) {
+                for (auto edge : adj[source.index]) {
+                    if (edge.source_sign == source.sign) {
+                        if (traverse_and_find_pattern_if_acyclic(pattern, edge.dest, final_dest, current)) {
                             return true;
                         }
                     }
@@ -188,39 +211,39 @@ class gfa_graph {
         void remove_backward_edges_dfa(gfa_graph* G) {
             for (int i = 0; i < adj.size(); i++) {
                 G->add_segment(get_label(i));
-                visited[2*i] = false;
-                visited[2*i+1] = false;
+                visited[2 * i] = false;
+                visited[2 * i+1] = false;
             }
 
             for (int i = 0; i < adj.size(); i++) {
-                if (!visited[2*i]) {
-                    traverse_remove_cycles(G, i, false); // traverse i+
+                if (!visited[2 * i]) {
+                    traverse_remove_cycles(G, {i, false}); // traverse i+
                 }
 
-                if (!visited[2*i + 1]) {
-                    traverse_remove_cycles(G, i, true); // traverse i-
+                if (!visited[2 * i + 1]) {
+                    traverse_remove_cycles(G, {i, true}); // traverse i-
                 }
             }
         }
 
-        void traverse_remove_cycles(gfa_graph* G, int s, bool sign) {
-            in_stack[2*s + sign] = true;
-            visited[2*s + sign] = true;
+        void traverse_remove_cycles(gfa_graph* G, gfa_node source) {
+            in_stack[2 * source.index + source.sign] = true;
+            visited[2 * source.index + source.sign] = true;
 
-            for (auto p : adj[s]) {
-                if (p.second.first != sign) {
+            for (auto edge : adj[source.index]) {
+                if (edge.source_sign != source.sign) {
                     continue;
                 }
 
-                if (!visited[2 * p.first + p.second.second]) {
-                    G->add_edge(s, sign, p.first, p.second.second);
-                    traverse_remove_cycles(G,  p.first, p.second.second);
-                } else if (!in_stack[2 * p.first + p.second.second]) { // if it's not a backward edge
-                    G->add_edge(s, sign, p.first, p.second.second);
+                if (!visited[2 * edge.dest.index + edge.dest.sign]) {
+                    G->add_edge(source, edge.dest);
+                    traverse_remove_cycles(G, edge.dest);
+                } else if (!in_stack[2 * edge.dest.index + edge.dest.sign]) { // if it's not a backward edge
+                    G->add_edge(source, edge.dest);
                 }
             }
 
-            in_stack[2*s + sign] = false;
+            in_stack[2 * source.index + source.sign] = false;
         }
 
         string flip(string segment) {
@@ -297,7 +320,7 @@ int main() {
                 tokens.push_back(token);
             }
 
-            G.add_edge(segments[tokens[0]], tokens[1][0] == '-', segments[tokens[2]], tokens[3][0] == '-');
+            G.add_edge({segments[tokens[0]], tokens[1][0] == '-'}, {segments[tokens[2]], tokens[3][0] == '-'});
         } while (getline(input_file, line));
     }
 
