@@ -146,14 +146,14 @@ class gfa_graph {
         bool check_pattern(string pattern, gfa_node source, gfa_node dest) {
             string current = "";
 
-            return traverse_and_find_pattern_if_acyclic(pattern, source, dest, &current);
+            return traverse_and_find_pattern_if_acyclic(pattern, source, dest, current);
         }
 
         void print_most_frequent_kmers(int len, int n, gfa_node source, gfa_node dest) { // (length of K-mers, top n)
             hashmap occ; // frequencies
             string current = "";
 
-            traverse_and_count_occurrences_if_acyclic(source, dest, &current, occ, len);
+            traverse_and_count_occurrences_if_acyclic(source, dest, current, occ, len);
 
             // min-heap (el: (number of occ's, k-mer representation in base 4))
             priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> ranking;
@@ -341,12 +341,12 @@ class gfa_graph {
 
         // similar to `traverse_and_find_pattern_if_acyclic`, but does not do pattern-searching;
         // instead it counts occurrences of K-mers.
-        void traverse_and_count_occurrences_if_acyclic(gfa_node source, gfa_node final_dest, string* current, hashmap& occ, int len) { // no visited vectors since we assume the graph is acyclic
+        void traverse_and_count_occurrences_if_acyclic(gfa_node source, gfa_node final_dest, string& current, hashmap& occ, int len) { // no visited vectors since we assume the graph is acyclic
             string current_label = get_label(source);
-            *current += current_label;
+            current += current_label;
 
             if (source == final_dest) { // first then second coordinate eq check in lazy fashion
-                count_occurrences(*current, occ, len);
+                count_occurrences(current, occ, len);
             } else {
                 for (auto edge : adj[source.index]) {
                     if (edge.source_sign == source.sign) {
@@ -355,18 +355,18 @@ class gfa_graph {
                 }
             }
 
-            (*current).erase((*current).size() - current_label.size()); // remove label
+            current.erase(current.size() - current_label.size()); // remove label
         }
 
-        bool traverse_and_find_pattern_if_acyclic(string pattern, gfa_node source, gfa_node final_dest, string* current) { // no visited vectors since we assume the graph is acyclic            
+        bool traverse_and_find_pattern_if_acyclic(string pattern, gfa_node source, gfa_node final_dest, string& current) { // no visited vectors since we assume the graph is acyclic            
             string current_label = get_label(source);
-            *current += current_label;
+            current += current_label;
 
             if (source == final_dest) { // first then second coordinate eq check in lazy fashion
-                if (contains_substring(*current, pattern)) { // true if the pattern is matched
+                if (contains_substring(current, pattern)) { // true if the pattern is matched
                     return true;
                 } else {
-                    (*current).erase((*current).size() - current_label.size()); // remove label
+                    current.erase(current.size() - current_label.size()); // remove label
                     return false;
                 }
             } else {
@@ -379,7 +379,7 @@ class gfa_graph {
                 }
             }
 
-            (*current).erase((*current).size() - current_label.size()); // remove label
+            current.erase(current.size() - current_label.size()); // remove label
             return false;
         }
 
