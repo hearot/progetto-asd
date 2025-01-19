@@ -10,27 +10,27 @@
 #include <unordered_map>
 #include <vector>
 
-// #define INPUT_FILE "example.gfa"
-// #define INPUT_FILE "example (cycle).gfa"
-#define INPUT_FILE "example (pdf).gfa"
+// #define DEFAULT_INPUT_FILE "example.gfa"
+// #define DEFAULT_INPUT_FILE "example (cycle).gfa"
+#define DEFAULT_INPUT_FILE "example (pdf).gfa"
 
 // see https://github.com/pangenome/odgi/blob/master/test/DRB1-3123_unsorted.gfa
-// #define INPUT_FILE "DRB1-3123_unsorted.gfa"
+// #define DEFAULT_INPUT_FILE "DRB1-3123_unsorted.gfa"
 
 // see https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrY.hprc-v1.0-pggb.gfa.gz
-// #define INPUT_FILE "chrY.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 197MB -- excluded in the repository
+// #define DEFAULT_INPUT_FILE "chrY.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 197MB -- excluded in the repository
 
 // see https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrX.hprc-v1.0-pggb.gfa.gz
-// #define INPUT_FILE "chrX.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 2.7GB -- excluded in the repository
+// #define DEFAULT_INPUT_FILE "chrX.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 2.7GB -- excluded in the repository
 
 // for input file "example (pdf).gfa"
-#define PATTERN "TTCA"
+#define DEFAULT_PATTERN "TTCA"
 
 // for input file "DRB1-3123_unsorted.gfa"
-// #define PATTERN "CTCTTGTAAGAAAAGTTCTCCAAGTCCCCACCCCACCCAGA" 
+// #define DEFAULT_PATTERN "CTCTTGTAAGAAAAGTTCTCCAAGTCCCCACCCCACCCAGA" 
 
 // K-mer length
-#define K 3
+#define DEFAULT_K 3
 
 // number of letters (A, T, C, G)
 #define SIGMA 4 // sigma for rolling hash (Karp-Rabin fingerprint)
@@ -442,15 +442,23 @@ class gfa_graph {
 };
 
 int main() {
-    ifstream input_file(INPUT_FILE);
+    string input_filename;
+
+    cout << "Insert input file (default is \"" << DEFAULT_INPUT_FILE << "\"): ";
+    getline(cin, input_filename);
+
+    input_filename = input_filename == "" ? DEFAULT_INPUT_FILE : input_filename;
+
+    ifstream input_file(input_filename);
 
     if (!input_file.is_open()) {
-        return 1; // input file is already open somewhere
+        cout << "Couldn't open the input file!" << endl;
+        return 1; // couldn't open the input file
     }
 
     gfa_graph G;
 
-    cout << "Reading input file \"" << INPUT_FILE << "\"..." << endl;
+    cout << endl << "Reading input file \"" << input_filename << "\"... ";
 
     {
         string line;
@@ -500,22 +508,29 @@ int main() {
     }
 
     input_file.close();
-    cout << "Done!" << endl << endl;
+    cout << "done!" << endl;
 
-    cout << "Making the graph acyclic..." << endl;
+    cout << "Making the graph acyclic... ";
     G = G.get_acyclic();
-    cout << "Done!" << endl << endl;
+    cout << "done!" << endl;
 
-    cout << "Getting a source node..." << endl;
+    cout << "Getting a source node... ";
     auto source = G.get_source();
-    cout << "Done!" << endl << endl;
+    cout << "done!" << endl;
 
-    cout << "Getting a destination node..." << endl;
+    cout << "Getting a destination node... ";
     auto dest = G.get_dest(source);
-    cout << "Done!" << endl << endl;
+    cout << "done!" << endl << endl;
 
-    cout << "Checking if pattern \"" << PATTERN "\" is contained within a path..." << endl;
-    bool found_pattern = G.check_pattern(PATTERN, source, dest);
+    string pattern = "";
+
+    cout << "Insert pattern to search for (default is \"" << DEFAULT_PATTERN << "\"): ";
+    getline(cin, pattern);
+
+    pattern = pattern == "" ? DEFAULT_PATTERN : pattern;
+
+    cout << endl << "Checking if pattern \"" << pattern << "\" is contained within a path..." << endl;
+    bool found_pattern = G.check_pattern(pattern, source, dest);
 
     if (found_pattern) {
         cout << "The pattern was found!" << endl << endl;
@@ -523,8 +538,18 @@ int main() {
         cout << "The pattern was NOT found!" << endl << endl;
     }
 
-    cout << "Ranking the top 10 most frequent K-mers with K=" << K << ":" << endl;
-    G.print_most_frequent_kmers(K, 10, source, dest);
+    int k;
+
+    {
+        string k_str;
+        cout << "Insert a length for which the top 10 most frequent K-mers have to be found (default is " << DEFAULT_K << "): ";
+        getline(cin, k_str);
+
+        k = k_str == "" ? DEFAULT_K : stoi(k_str);
+    }
+
+    cout << endl << "Ranking the top 10 most frequent K-mers with K=" << k << ":" << endl;
+    G.print_most_frequent_kmers(k, 10, source, dest);
 
     return 0;
 }
