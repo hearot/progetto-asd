@@ -17,12 +17,6 @@
 // see https://github.com/pangenome/odgi/blob/master/test/DRB1-3123_unsorted.gfa
 // #define DEFAULT_INPUT_FILE "DRB1-3123_unsorted.gfa"
 
-// see https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrY.hprc-v1.0-pggb.gfa.gz
-// #define DEFAULT_INPUT_FILE "chrY.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 197MB -- excluded in the repository
-
-// see https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrX.hprc-v1.0-pggb.gfa.gz
-// #define DEFAULT_INPUT_FILE "chrX.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 2.7GB -- excluded in the repository
-
 // for input file "example (pdf).gfa"
 #define DEFAULT_PATTERN "TTCA"
 

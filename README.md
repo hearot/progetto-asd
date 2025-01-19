@@ -29,5 +29,5 @@ Il progetto riguarda la costruzione e l'analisi di un pangenome graph, che perme
    * Riportare i 10 K-mer più frequenti in *G*.
 
 ### Riferimenti
-  * Documentazione del formato GFA: [[http://gfa-spec.github.io/GFA-spec/GFA1.html]]
-  * Dataset: [[https://github.com/jltsiren/gbwt-rs/blob/main/test-data/example.gfa|example.gfa]], [[https://github.com/pangenome/odgi/blob/master/test/DRB1-3123_unsorted.gfa|drb1.gfa]], [[https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrY.hprc-v1.0-pggb.gfa.gz|chrY.gfa]], [[https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrX.hprc-v1.0-pggb.gfa.gz|chrX.gfa]]
+  * Documentazione del formato GFA: http://gfa-spec.github.io/GFA-spec/GFA1.html
+  * Dataset: [example.gfa](https://github.com/jltsiren/gbwt-rs/blob/main/test-data/example.gfa), [DRB1-3123_unsorted.gfa](https://github.com/pangenome/odgi/blob/master/test/DRB1-3123_unsorted.gfa)
