@@ -2,18 +2,20 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <queue>
 #include <set>
 #include <sstream>
 #include <stack>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // #define INPUT_FILE "example.gfa"
 // #define INPUT_FILE "example (cycle).gfa"
-// #define INPUT_FILE "example (pdf).gfa"
+#define INPUT_FILE "example (pdf).gfa"
 
 // see https://github.com/pangenome/odgi/blob/master/test/DRB1-3123_unsorted.gfa
-#define INPUT_FILE "DRB1-3123_unsorted.gfa"
+// #define INPUT_FILE "DRB1-3123_unsorted.gfa"
 
 // see https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrY.hprc-v1.0-pggb.gfa.gz
 // #define INPUT_FILE "chrY.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 197MB -- excluded in the repository
@@ -21,17 +23,26 @@
 // see https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/pggb/chroms/chrX.hprc-v1.0-pggb.gfa.gz
 // #define INPUT_FILE "chrX.pan.fa.a2fb268.4030258.6a1ecc2.smooth.gfa" // 2.7GB -- excluded in the repository
 
-// #define PATTERN "TTCA"
-#define PATTERN "CTCTTGTAAGAAAAGTTCTCCAAGTCCCCACCCCACCCAGA"
+// for input file "example (pdf).gfa"
+#define PATTERN "TTCA"
 
-#define SIGMA 131 // sigma for rolling hash (Karp-Rabin fingerprint)
+// for input file "DRB1-3123_unsorted.gfa"
+// #define PATTERN "CTCTTGTAAGAAAAGTTCTCCAAGTCCCCACCCCACCCAGA" 
+
+// K-mer length
+#define K 3
+
+// number of letters (A, T, C, G)
+#define SIGMA 4 // sigma for rolling hash (Karp-Rabin fingerprint)
 #define PRIME 402309354485303 // random prime number for rolling hash
 
 using namespace std;
 
+typedef unordered_map<int, int> hashmap;
+
 struct gfa_node {
     int index;
-    bool sign; // true if negative, zero if positive
+    bool sign; // true (1) if negative, false (0) if positive
 };
 
 bool operator==(const gfa_node& first, const gfa_node& second) { // lazy
@@ -137,24 +148,154 @@ class gfa_graph {
 
             return traverse_and_find_pattern_if_acyclic(pattern, source, dest, &current);
         }
+
+        void print_most_frequent_kmers(int len, int n, gfa_node source, gfa_node dest) { // (length of K-mers, top n)
+            hashmap occ; // frequencies
+            string current = "";
+
+            traverse_and_count_occurrences_if_acyclic(source, dest, &current, occ, len);
+
+            // min-heap (el: (number of occ's, k-mer representation in base 4))
+            priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> ranking;
+
+            auto it = occ.begin();
+            int i = 0;
+
+            while (i < n && it != occ.end()) {
+                ranking.push({it->second, it->first});
+
+                it++;
+                i++;
+            }
+
+            if (i == 0) {
+                cout << "No k-mers were found!" << endl;
+                return;
+            }
+
+            while (it != occ.end()) {
+                if (it->second > ranking.top().first) {
+                    ranking.pop();
+                    ranking.push({it->second, it->first}); // min-heap of fixed size n
+                }
+
+                it++;
+            }
+
+            stack<pair<string, int>> top;
+            pair<int, int> elem;
+
+            while (!ranking.empty()) {
+                elem = ranking.top();
+                top.push({convert_to_string(elem.second, len), elem.first});
+                ranking.pop();
+            }
+
+            i = 1;
+            pair<string, int> top_elem;
+
+            while (!top.empty()) {
+                top_elem = top.top();
+                cout << i << ". " << top_elem.first << " - " << top_elem.second << endl;
+                top.pop();
+                i++;
+            }
+        }
+
     private:
-        bool contains_substring(string str, string substr) {
+        string convert_to_string(int u, int len) { // length is needed to distinguish between "ATA" and "TA" for example ('A' = 0)
+            string res = "";
+            int c = 0;
+            int i = 0;
+
+            while (u != 0) {
+                i++;
+
+                c = u % 4;
+                u /= 4;
+
+                switch (c) {
+                    case 0:
+                        res = "A" + res;
+                        break;
+                    case 1:
+                        res = "T" + res;
+                        break;
+                    case 2:
+                        res = "C" + res;
+                        break;
+                    case 3:
+                        res = "G" + res;
+                        break;
+                }
+            }
+
+            if (i < len) {
+                for (; i != len; i++) {
+                    res = "A" + res;
+                }
+            }
+
+            return res;
+        }
+
+        int convert_to_base_4(char c) {
+            switch (c) {
+                case 'A':
+                    return 0;
+                case 'T':
+                    return 1;
+                case 'C':
+                    return 2;
+                case 'G':
+                    return 3;
+                default:
+                    return -1; // c not in {A, T, C, G}
+            }
+        }
+
+        // similar to `contains_substring`, except it just counts occurrences
+        // and doesn't do any pattern-search (i.e. doesn't actually use
+        // the Karp-Rabin fingerprint)
+        void count_occurrences(string str, hashmap& occ, int len) {
+            int m = str.size();
+
+            if (m < len) {
+                return;
+            }
+
+            int SIGMAk = fast_exp(SIGMA, len - 1); // SIGMA^(len-1) with fast exp
+            int s = 0;
+            int i = 0;
+
+            for (; i < len; i++) {
+                s = s * 4 + convert_to_base_4(str[i]);
+            }
+
+            occ[s]++;
+
+            for (; i < m; i++) {
+                s = 4 * (s - convert_to_base_4(str[i-len]) * SIGMAk) + convert_to_base_4(str[i]);
+                occ[s]++;
+            }
+        }
+
+        bool contains_substring(string str, string substr) { // uses Karp-Rabin fingerprint
             int n = substr.size();
             int m = str.size();
             int H = 0;
             int Hp = 0; // pattern hash
 
-            int SIGMAk = fast_exp_mod(SIGMA, n-1, PRIME); // SIGMA^(n-1) mod PRIME
-
             if (m < n) {
                 return false;
             }
 
+            int SIGMAk = fast_exp_mod(SIGMA, n-1, PRIME); // SIGMA^(n-1) mod PRIME with fast exp
             int i = 0;
 
             for (; i < n; i++) {
-                H = (SIGMA * H + str[i]) % PRIME;
-                Hp = (SIGMA * Hp + substr[i]) % PRIME;
+                H = (SIGMA * H + convert_to_base_4(str[i])) % PRIME;
+                Hp = (SIGMA * Hp + convert_to_base_4(substr[i])) % PRIME;
             }
 
             for(; i < m; i++) {
@@ -162,10 +303,25 @@ class gfa_graph {
                     return true;
                 }
 
-                H = (SIGMA * (H - SIGMAk * str[i - n]) + str[i]) % PRIME;
+                H = (SIGMA * (H - SIGMAk * convert_to_base_4(str[i - n])) + convert_to_base_4(str[i])) % PRIME;
             }
 
             return false;
+        }
+
+        int fast_exp(int base, int exp) {
+            int result = 1;
+            
+            while (exp) {
+                if (exp & 1) { // odd exponent check
+                    result = result * base;
+                }
+
+                base = base * base;
+                exp >>= 1; // right shift to divide by 2
+            }
+
+            return result;
         }
 
         int fast_exp_mod(int base, int exp, long long int prime) {
@@ -181,6 +337,25 @@ class gfa_graph {
             }
 
             return result;
+        }
+
+        // similar to `traverse_and_find_pattern_if_acyclic`, but does not do pattern-searching;
+        // instead it counts occurrences of K-mers.
+        void traverse_and_count_occurrences_if_acyclic(gfa_node source, gfa_node final_dest, string* current, hashmap& occ, int len) { // no visited vectors since we assume the graph is acyclic
+            string current_label = get_label(source);
+            *current += current_label;
+
+            if (source == final_dest) { // first then second coordinate eq check in lazy fashion
+                count_occurrences(*current, occ, len);
+            } else {
+                for (auto edge : adj[source.index]) {
+                    if (edge.source_sign == source.sign) {
+                        traverse_and_count_occurrences_if_acyclic(edge.dest, final_dest, current, occ, len);
+                    }
+                }
+            }
+
+            (*current).erase((*current).size() - current_label.size()); // remove label
         }
 
         bool traverse_and_find_pattern_if_acyclic(string pattern, gfa_node source, gfa_node final_dest, string* current) { // no visited vectors since we assume the graph is acyclic            
@@ -325,28 +500,31 @@ int main() {
     }
 
     input_file.close();
-    cout << "Done!" << endl;
+    cout << "Done!" << endl << endl;
 
     cout << "Making the graph acyclic..." << endl;
     G = G.get_acyclic();
-    cout << "Done!" << endl;
+    cout << "Done!" << endl << endl;
 
     cout << "Getting a source node..." << endl;
-    auto source_pair = G.get_source();
-    cout << "Done!" << endl;
+    auto source = G.get_source();
+    cout << "Done!" << endl << endl;
 
     cout << "Getting a destination node..." << endl;
-    auto dest_pair = G.get_dest(source_pair);
-    cout << "Done!" << endl;
+    auto dest = G.get_dest(source);
+    cout << "Done!" << endl << endl;
 
     cout << "Checking if pattern \"" << PATTERN "\" is contained within a path..." << endl;
-    bool found_pattern = G.check_pattern(PATTERN, source_pair, dest_pair);
+    bool found_pattern = G.check_pattern(PATTERN, source, dest);
 
     if (found_pattern) {
-        cout << "The pattern was found!" << endl;
+        cout << "The pattern was found!" << endl << endl;
     } else {
-        cout << "The pattern was NOT found!" << endl;
+        cout << "The pattern was NOT found!" << endl << endl;
     }
+
+    cout << "Ranking the top 10 most frequent K-mers with K=" << K << ":" << endl;
+    G.print_most_frequent_kmers(K, 10, source, dest);
 
     return 0;
 }
