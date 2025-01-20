@@ -32,6 +32,9 @@
 
 using namespace std;
 
+int BASE_4[44] = {0}; // 'A' = 41, 'T' = 84, 84-41=44 -- lookup table
+char SIGMA_TABLE[4] = {'A', 'T', 'C', 'G'}; // reverse lookup table
+
 typedef unordered_map<int, int> hashmap;
 
 struct gfa_node {
@@ -92,10 +95,6 @@ class gfa_graph {
 
             remove_backward_edges_dfa(&G);
             return G;
-        }
-
-        string get_label(int index, bool sign = false) {
-            return label[2 * index + sign]; // bool treated as int!
         }
 
         string get_label(gfa_node node) {
@@ -198,54 +197,18 @@ class gfa_graph {
 
     private:
         string convert_to_string(int u, int len) { // length is needed to distinguish between "ATA" and "TA" for example ('A' = 0)
-            string res = "";
-            int c = 0;
-            int i = 0;
+            string res = string(len, 'A'); // pre-allocate with default value 'A' (= 0, in our base)
 
-            while (u != 0) {
-                i++;
+            int c;
 
+            for (int i = 1; u != 0; i++) {
                 c = u % 4;
                 u /= 4;
 
-                switch (c) {
-                    case 0:
-                        res = "A" + res;
-                        break;
-                    case 1:
-                        res = "T" + res;
-                        break;
-                    case 2:
-                        res = "C" + res;
-                        break;
-                    case 3:
-                        res = "G" + res;
-                        break;
-                }
-            }
-
-            if (i < len) {
-                for (; i != len; i++) {
-                    res = "A" + res;
-                }
+                res[len - i] = SIGMA_TABLE[c];
             }
 
             return res;
-        }
-
-        int convert_to_base_4(char c) {
-            switch (c) {
-                case 'A':
-                    return 0;
-                case 'T':
-                    return 1;
-                case 'C':
-                    return 2;
-                case 'G':
-                    return 3;
-                default:
-                    return -1; // c not in {A, T, C, G}
-            }
         }
 
         // similar to `contains_substring`, except it just counts occurrences
@@ -263,13 +226,13 @@ class gfa_graph {
             int i = 0;
 
             for (; i < len; i++) {
-                s = s * 4 + convert_to_base_4(str[i]);
+                s = s * 4 + BASE_4[str[i] - 'A'];
             }
 
             occ[s]++;
 
             for (; i < m; i++) {
-                s = 4 * (s - convert_to_base_4(str[i-len]) * SIGMAk) + convert_to_base_4(str[i]);
+                s = 4 * (s - BASE_4[str[i-len] - 'A'] * SIGMAk) + BASE_4[str[i] - 'A'];
                 occ[s]++;
             }
         }
@@ -288,8 +251,8 @@ class gfa_graph {
             int i = 0;
 
             for (; i < n; i++) {
-                H = (SIGMA * H + convert_to_base_4(str[i])) % PRIME;
-                Hp = (SIGMA * Hp + convert_to_base_4(substr[i])) % PRIME;
+                H = (SIGMA * H + BASE_4[str[i] - 'A']) % PRIME;
+                Hp = (SIGMA * Hp + BASE_4[substr[i] - 'A']) % PRIME;
             }
 
             for(; i < m; i++) {
@@ -297,7 +260,7 @@ class gfa_graph {
                     return true;
                 }
 
-                H = (SIGMA * (H - SIGMAk * convert_to_base_4(str[i - n])) + convert_to_base_4(str[i])) % PRIME;
+                H = (SIGMA * (H - SIGMAk * BASE_4[str[i - n] - 'A']) + BASE_4[str[i] - 'A']) % PRIME;
             }
 
             return false;
@@ -379,7 +342,7 @@ class gfa_graph {
 
         void remove_backward_edges_dfa(gfa_graph* G) {
             for (int i = 0; i < adj.size(); i++) {
-                G->add_segment(get_label(i));
+                G->add_segment(get_label({i, false}));
                 visited[2 * i] = false;
                 visited[2 * i+1] = false;
             }
@@ -416,18 +379,17 @@ class gfa_graph {
         }
 
         string flip(string segment) {
-            string flipped;
-            flipped.reserve(segment.size()); // reserve space -- its length is the same as segment's
+            string flipped(segment.size(), '\0');
 
-            for (char c : segment) {
-                if (c == 'A') {
-                    flipped = 'T' + flipped;
-                } else if (c == 'T') {
-                    flipped = 'A' + flipped;
-                } else if (c == 'C') {
-                    flipped = 'G' + flipped;
+            for (auto c = segment.rbegin(); c != segment.rend(); c++) { // reverse order
+                if (*c == 'A') {
+                    flipped += 'T';
+                } else if (*c == 'T') {
+                    flipped += 'A';
+                } else if (*c == 'C') {
+                    flipped += 'G';
                 } else {
-                    flipped = 'C' + flipped;
+                    flipped += 'C';
                 }
             }
 
@@ -436,6 +398,11 @@ class gfa_graph {
 };
 
 int main() {
+    BASE_4['A' - 'A'] = 0;
+    BASE_4['T' - 'A'] = 1;
+    BASE_4['C' - 'A'] = 2;
+    BASE_4['G' - 'A'] = 3;
+
     string input_filename;
 
     cout << "Insert input file (default is \"" << DEFAULT_INPUT_FILE << "\"): ";
