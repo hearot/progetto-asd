@@ -90,11 +90,12 @@ class gfa_graph {
             is_source[2 * dest.index + dest.sign] = false; // bool treated as int!
         }
 
-        gfa_graph get_acyclic() {
+        pair<gfa_graph, bool> get_acyclic() { // (graph, true) if the graph was cyclic, (graph, false) otherwhise 
             gfa_graph G;
+            bool is_cyclic = false;
 
-            remove_backward_edges_dfa(&G);
-            return G;
+            remove_backward_edges_dfa(G, is_cyclic);
+            return {G, is_cyclic};
         }
 
         string get_label(gfa_node node) {
@@ -340,25 +341,25 @@ class gfa_graph {
             return false;
         }
 
-        void remove_backward_edges_dfa(gfa_graph* G) {
+        void remove_backward_edges_dfa(gfa_graph& G, bool& is_cyclic) {
             for (int i = 0; i < adj.size(); i++) {
-                G->add_segment(get_label({i, false}));
+                G.add_segment(get_label({i, false}));
                 visited[2 * i] = false;
                 visited[2 * i+1] = false;
             }
 
             for (int i = 0; i < adj.size(); i++) {
                 if (!visited[2 * i]) {
-                    traverse_remove_cycles(G, {i, false}); // traverse i+
+                    traverse_remove_cycles(G, {i, false}, is_cyclic); // traverse i+
                 }
 
                 if (!visited[2 * i + 1]) {
-                    traverse_remove_cycles(G, {i, true}); // traverse i-
+                    traverse_remove_cycles(G, {i, true}, is_cyclic); // traverse i-
                 }
             }
         }
 
-        void traverse_remove_cycles(gfa_graph* G, gfa_node source) {
+        void traverse_remove_cycles(gfa_graph& G, gfa_node source, bool& is_cyclic) {
             in_stack[2 * source.index + source.sign] = true;
             visited[2 * source.index + source.sign] = true;
 
@@ -368,10 +369,12 @@ class gfa_graph {
                 }
 
                 if (!visited[2 * edge.dest.index + edge.dest.sign]) {
-                    G->add_edge(source, edge.dest);
-                    traverse_remove_cycles(G, edge.dest);
+                    G.add_edge(source, edge.dest);
+                    traverse_remove_cycles(G, edge.dest, is_cyclic);
                 } else if (!in_stack[2 * edge.dest.index + edge.dest.sign]) { // if it's not a backward edge
-                    G->add_edge(source, edge.dest);
+                    G.add_edge(source, edge.dest);
+                } else { // it's a backward edge, hence the original graph was cyclic
+                    is_cyclic = true;
                 }
             }
 
@@ -471,9 +474,17 @@ int main() {
     input_file.close();
     cout << "done!" << endl;
 
-    cout << "Making the graph acyclic... ";
-    G = G.get_acyclic();
+    cout << "Checking whether the graph is acyclic... ";
+    auto P = G.get_acyclic();
     cout << "done!" << endl;
+
+    G = P.first; // G is now acyclic
+
+    if (P.second) {
+        cout << "The graph was cyclic, and has now been rendered acyclic!" << endl;
+    } else {
+        cout << "The graph was already acyclic!" << endl;
+    }
 
     cout << "Getting a source node... ";
     auto source = G.get_source();
