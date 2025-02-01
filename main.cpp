@@ -40,22 +40,14 @@ typedef unordered_map<int, int> hashmap;
 struct gfa_node {
     int index;
     bool sign; // true (1) if negative, false (0) if positive
+
+    bool operator==(const gfa_node& other) const { // lazy
+        return (index == other.index) && (sign == other.sign);
+    }
 };
 
-bool operator==(const gfa_node& first, const gfa_node& second) { // lazy
-    if (first.index != second.index) {
-        return false;
-    }
-
-    if (first.sign != second.sign) {
-        return false;
-    }
-
-    return true;
-}
-
 class gfa_graph {
-    protected:
+    private:
         struct edge {
             gfa_node dest;
             bool source_sign; // true if negative, zero if positive
@@ -69,7 +61,7 @@ class gfa_graph {
         vector<bool> is_source;
 
     public:
-        void add_segment(string segment) {
+        void add_segment(const string& segment) {
             adj.push_back({});
             label.push_back(segment);
             label.push_back(flip(segment));
@@ -85,7 +77,7 @@ class gfa_graph {
             is_source.push_back(true);
         }
 
-        void add_edge(gfa_node source, gfa_node dest) {
+        void add_edge(const gfa_node& source, const gfa_node& dest) {
             adj[source.index].push_back({{dest.index, dest.sign}, source.sign});
             is_source[2 * dest.index + dest.sign] = false; // bool treated as int!
         }
@@ -98,11 +90,11 @@ class gfa_graph {
             return {G, is_cyclic};
         }
 
-        string get_label(gfa_node node) {
+        string get_label(const gfa_node& node) const {
             return label[2 * node.index + node.sign]; // bool treated as int!
         }
 
-        gfa_node get_source() { // (i, sign)
+        gfa_node get_source() const { // (i, sign)
             for (int i = 0; i < adj.size(); i++) {
                 if (is_source[2 * i]) {
                     return {i, false};
@@ -114,7 +106,7 @@ class gfa_graph {
             return {-1, false}; // no source
         }
 
-        gfa_node get_dest(gfa_node source) { // (i, sign)
+        gfa_node get_dest(const gfa_node& source) const { // (i, sign)
             bool is_dest = true;
 
             // edge -> (dest: (index, sign), source_sign)
@@ -137,13 +129,24 @@ class gfa_graph {
             }
         }
 
-        bool check_pattern(string pattern, gfa_node source, gfa_node dest) {
-            string current = "";
+        bool check_pattern(const string& pattern, const gfa_node& source, const gfa_node& dest) const {
+            string current_str = "";
+            int current_hash = 0;
+            bool found = false;
 
-            return traverse_and_find_pattern_if_acyclic(pattern, source, dest, current);
+            int pattern_hash = 0;
+            int pattern_len = pattern.length();
+
+            for (int i = 0; i < pattern_len; i++) { // compute pattern hash
+                pattern_hash = (SIGMA * pattern_hash + BASE_4[pattern[i] - 'A']) % PRIME;
+            }
+
+            int SIGMAk = fast_exp_mod(SIGMA, pattern_len - 1, PRIME); // SIGMA^(pattern_len-1) mod PRIME with fast exp
+
+            return traverse_and_find_pattern_if_acyclic(pattern, pattern.length(), pattern_hash, SIGMAk, source, dest, current_str, current_hash, found);
         }
 
-        void print_most_frequent_kmers(int len, int n, gfa_node source, gfa_node dest) { // (length of K-mers, top n)
+        void print_most_frequent_kmers(const int& len, const int& n, gfa_node source, const gfa_node& dest) const { // (length of K-mers, top n)
             hashmap occ; // frequencies
             string current = "";
 
@@ -197,7 +200,7 @@ class gfa_graph {
         }
 
     private:
-        string convert_to_string(int u, int len) { // length is needed to distinguish between "ATA" and "TA" for example ('A' = 0)
+        string convert_to_string(int u, const int& len) const { // length is needed to distinguish between "ATA" and "TA" for example ('A' = 0)
             string res = string(len, 'A'); // pre-allocate with default value 'A' (= 0, in our base)
 
             int c;
@@ -215,7 +218,7 @@ class gfa_graph {
         // similar to `contains_substring`, except it just counts occurrences
         // and doesn't do any pattern-search (i.e. doesn't actually use
         // the Karp-Rabin fingerprint)
-        void count_occurrences(string str, hashmap& occ, int len) {
+        void count_occurrences(string str, hashmap& occ, const int& len) const {
             int m = str.size();
 
             if (m < len) {
@@ -238,36 +241,7 @@ class gfa_graph {
             }
         }
 
-        bool contains_substring(string str, string substr) { // uses Karp-Rabin fingerprint
-            int n = substr.size();
-            int m = str.size();
-            int H = 0;
-            int Hp = 0; // pattern hash
-
-            if (m < n) {
-                return false;
-            }
-
-            int SIGMAk = fast_exp_mod(SIGMA, n-1, PRIME); // SIGMA^(n-1) mod PRIME with fast exp
-            int i = 0;
-
-            for (; i < n; i++) {
-                H = (SIGMA * H + BASE_4[str[i] - 'A']) % PRIME;
-                Hp = (SIGMA * Hp + BASE_4[substr[i] - 'A']) % PRIME;
-            }
-
-            for(; i < m; i++) {
-                if (H == Hp && str.compare(i - n, n, substr) == 0) { // same hash
-                    return true;
-                }
-
-                H = (SIGMA * (H - SIGMAk * BASE_4[str[i - n] - 'A']) + BASE_4[str[i] - 'A']) % PRIME;
-            }
-
-            return false;
-        }
-
-        int fast_exp(int base, int exp) {
+        int fast_exp(int base, int exp) const {
             int result = 1;
             
             while (exp) {
@@ -282,7 +256,7 @@ class gfa_graph {
             return result;
         }
 
-        int fast_exp_mod(int base, int exp, long long int prime) {
+        int fast_exp_mod(int base, int exp, const long long int& prime) const {
             int result = 1;
             
             while (exp) {
@@ -299,7 +273,7 @@ class gfa_graph {
 
         // similar to `traverse_and_find_pattern_if_acyclic`, but does not do pattern-searching;
         // instead it counts occurrences of K-mers.
-        void traverse_and_count_occurrences_if_acyclic(gfa_node source, gfa_node final_dest, string& current, hashmap& occ, int len) { // no visited vectors since we assume the graph is acyclic
+        void traverse_and_count_occurrences_if_acyclic(gfa_node source, const gfa_node& final_dest, string& current, hashmap& occ, const int& len) const { // no visited vectors since we assume the graph is acyclic
             string current_label = get_label(source);
             current += current_label;
 
@@ -316,29 +290,52 @@ class gfa_graph {
             current.erase(current.size() - current_label.size()); // remove label
         }
 
-        bool traverse_and_find_pattern_if_acyclic(string pattern, gfa_node source, gfa_node final_dest, string& current) { // no visited vectors since we assume the graph is acyclic            
-            string current_label = get_label(source);
-            current += current_label;
+        bool traverse_and_find_pattern_if_acyclic(const string& pattern, const int& pattern_len, const int& pattern_hash, const int& SIGMAk, gfa_node source, const gfa_node& final_dest, string current_str, int current_hash, bool found) const { // no visited vectors since we assume the graph is acyclic            
+            if (!found) { // if the pattern hasn't been found yet, update the hash & the string to try matching it
+                string current_label = get_label(source);
 
-            if (source == final_dest) { // first then second coordinate eq check in lazy fashion
-                if (contains_substring(current, pattern)) { // true if the pattern is matched
-                    return true;
-                } else {
-                    current.erase(current.size() - current_label.size()); // remove label
-                    return false;
+                int q = current_str.length();
+
+                current_str += current_label;
+                int n = current_str.length();
+
+                int i = q;
+
+                for (; i < pattern_len && i < n; i++) { // initial hash
+                    current_hash = (SIGMA * current_hash + BASE_4[current_str[i] - 'A']) % PRIME;
                 }
-            } else {
-                for (auto edge : adj[source.index]) {
-                    if (edge.source_sign == source.sign) {
-                        if (traverse_and_find_pattern_if_acyclic(pattern, edge.dest, final_dest, current)) {
-                            return true;
+
+                if (n >= pattern_len) {
+                    // first pattern matching
+                    if (current_hash == pattern_hash && current_str.compare(i - pattern_len, pattern_len, pattern) == 0) { // same hash
+                        found = true;
+                    } else {
+                        while (i < n) { // rolling hash with a sliding window
+                            current_hash = (SIGMA * (current_hash - SIGMAk * BASE_4[current_str[i - pattern_len] - 'A']) + BASE_4[current_str[i] - 'A']) % PRIME;
+                            i++;
+
+                            if (current_hash == pattern_hash && current_str.compare(i - pattern_len, pattern_len, pattern) == 0) { // same hash
+                                found = true;
+                                break;
+                            }
                         }
                     }
                 }
             }
 
-            current.erase(current.size() - current_label.size()); // remove label
-            return false;
+            if (source == final_dest) { // first then second coordinate eq check in lazy fashion
+                return found;
+            } else {
+                for (auto edge : adj[source.index]) {
+                    if (edge.source_sign == source.sign) {
+                        if (traverse_and_find_pattern_if_acyclic(pattern, pattern_len, pattern_hash, SIGMAk, edge.dest, final_dest, current_str, current_hash, found)) {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
         }
 
         void remove_backward_edges_dfa(gfa_graph& G, bool& is_cyclic) {
@@ -381,19 +378,25 @@ class gfa_graph {
             in_stack[2 * source.index + source.sign] = false;
         }
 
-        string flip(string segment) {
+        string flip(const string& segment) const {
             string flipped(segment.size(), '\0');
 
-            for (auto c = segment.rbegin(); c != segment.rend(); c++) { // reverse order
+            int i = 0;
+            auto c = segment.rbegin();
+
+            while (c != segment.rend()) {
                 if (*c == 'A') {
-                    flipped += 'T';
+                    flipped[i] = 'T';
                 } else if (*c == 'T') {
-                    flipped += 'A';
+                    flipped[i] = 'A';
                 } else if (*c == 'C') {
-                    flipped += 'G';
+                    flipped[i] = 'G';
                 } else {
-                    flipped += 'C';
+                    flipped[i] = 'C';
                 }
+
+                c++;
+                i++;
             }
 
             return flipped;
